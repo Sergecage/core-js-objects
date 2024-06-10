@@ -34,7 +34,13 @@ function shallowCopy(obj) {
  *    mergeObjects([]) => {}
  */
 function mergeObjects(objects) {
-  return objects.reduce((target, source) => Object.assign(target, source), {});
+  const obj = {};
+  objects.forEach((ent) =>
+    Object.entries(ent).forEach(([key, value]) => {
+      obj[key] = (obj[key] || null) + value;
+    })
+  );
+  return obj;
 }
 
 /**
@@ -87,7 +93,7 @@ function compareObjects(obj1, obj2) {
  *    isEmptyObject({a: 1}) => false
  */
 function isEmptyObject(obj) {
-  return Object.entries(obj).length === 0;
+  return Object.keys(obj).length === 0;
 }
 
 /**
@@ -145,15 +151,18 @@ function makeWord(lettersObject) {
  *    sellTickets([25, 100]) => false (The seller does not have enough money to give change.)
  */
 function sellTickets(queue) {
-  const arr = queue.slice(0, -1);
-  if (
-    queue[queue.length - 1] - arr === 25 ||
-    queue[queue.length - 1] - queue[0] === 25 ||
-    queue[queue.length - 1] - arr >= 25
-  ) {
-    return true;
-  }
-  return false;
+  let change = 0;
+  let outcome = true;
+
+  queue.forEach((bill) => {
+    if (bill === 25 || bill - change <= 25) {
+      outcome = true;
+      change += bill;
+    } else {
+      outcome = false;
+    }
+  });
+  return queue.length === 0 ? true : outcome;
 }
 
 /**
@@ -353,56 +362,64 @@ function group(array, keySelector, valueSelector) {
  */
 
 const cssSelectorBuilder = {
-  sel: '',
-  arr: [],
+  value: '',
   order: 0,
 
   element(value) {
-    this.value = value;
-    if (this.order > 0) {
-      this.arr.push(this.sel);
-      this.sel = '';
-    }
-    this.order += 1;
-    this.sel += value;
-    return this;
+    return this.createSelector(value, 0, 'containsTag');
   },
 
   id(value) {
-    this.sel += `#${value}`;
-    return this;
+    return this.createSelector(`#${value}`, 1, 'containsId');
   },
 
   class(value) {
-    this.sel += `.${value}`;
+    return this.createSelector(`.${value}`, 2);
   },
 
   attr(value) {
-    this.sel += `[${value}]`;
-    return this;
+    return this.createSelector(`[${value}]`, 3);
   },
 
   pseudoClass(value) {
-    this.sel += `:${value}`;
-    return this;
+    return this.createSelector(`:${value}`, 4);
   },
 
   pseudoElement(value) {
-    this.sel += `::${value}`;
-    return this;
+    return this.createSelector(`::${value}`, 5, 'containsPseudoElement');
   },
 
   combine(selector1, combinator, selector2) {
-    if (selector1 || combinator || selector2) {
-      return 's';
+    return Object.create(this, {
+      value: { value: `${selector1.value} ${combinator} ${selector2.value}` },
+    });
+  },
+
+  createSelector(value, order, containsElement = null) {
+    if (
+      (containsElement === 'containsTag' && this.containsTag) ||
+      (containsElement === 'containsId' && this.containsId) ||
+      (containsElement === 'containsPseudoElement' &&
+        this.containsPseudoElement)
+    ) {
+      throw new Error(
+        'Element, id and pseudo-element should not occur more then one time inside the selector'
+      );
     }
-    return 2;
+    if (order < this.order) {
+      throw new Error(
+        'Selector parts should be arranged in the following order: element, id, class, attribute, pseudo-class, pseudo-element'
+      );
+    }
+    const obj = Object.create(this);
+    obj.value = this.value + value;
+    obj.order = order;
+    if (containsElement) obj[containsElement] = true;
+    return obj;
   },
 
   stringify() {
-    const selector = this.sel;
-    this.sel = '';
-    return selector;
+    return this.value;
   },
 };
 
